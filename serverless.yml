@@ -2,22 +2,63 @@ service: api-with-auth
 
 custom:
   secrets: ${file(secrets.json)}
+  dynamodb:
+    stages:
+      - dev
+    start:
+      port: 8000
+      inMemory: true
+      heapInitial: 200m
+      heapMax: 1g
+      migrate: true
+      seed: true
+      convertEmptyValues: true
+    # Uncomment only if you already have a DynamoDB running locally
+    # noStart: true
 
 provider:
   name: aws
-  runtime: nodejs8.10
+  runtime: nodejs14.x
   stage: dev
   region: us-east-1
   environment:
     JWT_SECRET: ${self:custom.secrets.JWT_SECRET}
     DB: ${self:custom.secrets.DB}
+    USER_TABLE_NAME: UsersTable
+
+resources:
+  Resources:
+    usersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: UsersTable
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: user_email
+            KeySchema:
+              - AttributeName: email 
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+                
 
 functions:
   verify-token:
-    handler: auth/VerifyToken.auth
+    handler: src/auth/VerifyToken.auth
 
   login:
-    handler: auth/AuthHandler.login
+    handler: src/auth/AuthHandler.login
     events:
       - http:
           path: login
@@ -25,7 +66,7 @@ functions:
           cors: true
 
   register:
-    handler: auth/AuthHandler.register
+    handler: src/auth/AuthHandler.register
     events:
       - http:
           path: register
@@ -33,7 +74,7 @@ functions:
           cors: true
 
   me:
-    handler: auth/AuthHandler.me
+    handler: src/auth/AuthHandler.me
     events:
       - http:
           path: me
@@ -42,7 +83,7 @@ functions:
           authorizer: verify-token
 
   getUsers:
-    handler: user/UserHandler.getUsers
+    handler: src/user/UserHandler.getUsers
     events:
       - http:
           path: users
@@ -50,4 +91,5 @@ functions:
           cors: true
 
 plugins:
+  - serverless-dynamodb-local
   - serverless-offline

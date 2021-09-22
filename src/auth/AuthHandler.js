@@ -1,4 +1,3 @@
-const connectToDatabase = require('../db');
 const User = require('../user/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs-then');
@@ -9,10 +8,7 @@ const bcrypt = require('bcryptjs-then');
 
 module.exports.login = (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  return connectToDatabase()
-    .then(() =>
-      login(JSON.parse(event.body))
-    )
+  return login(JSON.parse(event.body))
     .then(session => ({
       statusCode: 200,
       body: JSON.stringify(session)
@@ -20,16 +16,13 @@ module.exports.login = (event, context) => {
     .catch(err => ({
       statusCode: err.statusCode || 500,
       headers: { 'Content-Type': 'text/plain' },
-      body: { stack: err.stack, message: err.message }
+      body: JSON.stringify({ stack: err.stack, message: err.message })
     }));
 };
 
 module.exports.register = (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  return connectToDatabase()
-    .then(() =>
-      register(JSON.parse(event.body))
-    )
+  return register(JSON.parse(event.body))
     .then(session => ({
       statusCode: 200,
       body: JSON.stringify(session)
@@ -43,10 +36,7 @@ module.exports.register = (event, context) => {
 
 module.exports.me = (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  return connectToDatabase()
-    .then(() =>
-      me(event.requestContext.authorizer.principalId)
-    )
+  return me(event.requestContext.authorizer.principalId)
     .then(session => ({
       statusCode: 200,
       body: JSON.stringify(session)
@@ -54,7 +44,7 @@ module.exports.me = (event, context) => {
     .catch(err => ({
       statusCode: err.statusCode || 500,
       headers: { 'Content-Type': 'text/plain' },
-      body: { stack: err.stack, message: err.message }
+      body: JSON.stringify({ stack: err.stack, message: err.message })
     }));
 };
 
@@ -93,7 +83,7 @@ function checkIfInputIsValid(eventBody) {
 function register(eventBody) {
   return checkIfInputIsValid(eventBody) // validate input
     .then(() =>
-      User.findOne({ email: eventBody.email }) // check if user exists
+      User.getUserByEmail(eventBody.email) // check if user exists
     )
     .then(user =>
       user
@@ -101,13 +91,14 @@ function register(eventBody) {
         : bcrypt.hash(eventBody.password, 8) // hash the pass
     )
     .then(hash =>
-      User.create({ name: eventBody.name, email: eventBody.email, password: hash }) // create the new user
+      User.register({ name: eventBody.name, email: eventBody.email, password: hash }) // create the new user
     )
     .then(user => ({ auth: true, token: signToken(user._id) })); // sign the token and send it back
 }
 
 function login(eventBody) {
-  return User.findOne({ email: eventBody.email })
+  console.log(eventBody);
+  return User.getUserByEmail(eventBody.email)
     .then(user =>
       !user
         ? Promise.reject(new Error('User with that email does not exits.'))
@@ -126,7 +117,7 @@ function comparePassword(eventPassword, userPassword, userId) {
 }
 
 function me(userId) {
-  return User.findById(userId, { password: 0 })
+  return User.getById(userId)
     .then(user =>
       !user
         ? Promise.reject('No user found.')

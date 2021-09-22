@@ -1,4 +1,3 @@
-const connectToDatabase = require('../db');
 const User = require('./User');
 
 /**
@@ -7,8 +6,7 @@ const User = require('./User');
 
 module.exports.getUsers = (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  return connectToDatabase()
-    .then(getUsers)
+  return User.getUsers()
     .then(users => ({
       statusCode: 200,
       body: JSON.stringify(users)
@@ -23,9 +21,3 @@ module.exports.getUsers = (event, context) => {
 /**
  * Helpers
  */
-
-function getUsers() {
-  return User.find({})
-    .then(users => users)
-    .catch(err => Promise.reject(new Error(err)));
-}
